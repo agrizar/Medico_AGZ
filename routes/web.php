@@ -87,6 +87,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/recetas', 'App\Http\Controllers\pages\reportes\ReportesController@recetas')->name('reporte-recetas');
     Route::get('/pacientes', 'App\Http\Controllers\pages\reportes\ReportesController@pacientes')->name('reporte-pacientes');
     Route::get('/consultas', 'App\Http\Controllers\pages\reportes\ReportesController@consultas')->name('reporte-consultas');
+    Route::get('/estadisticas', 'App\Http\Controllers\pages\reportes\ReportesController@estadisticas')->name('reporte-estadistico');
 
     # ****************************************************************************************
     # ****************************************************************************************
@@ -95,6 +96,17 @@ Route::middleware(['auth'])->group(function () {
       Route::post('/recetas/exportar', 'App\Http\Controllers\pages\reportes\ReportesDescargaController@exportarRecetas');
       Route::post('/pacientes/exportar', 'App\Http\Controllers\pages\reportes\ReportesDescargaController@exportarPacientes');
       Route::post('/consultas/exportar', 'App\Http\Controllers\pages\reportes\ReportesDescargaController@exportarConsultas');
+
+      Route::post('/estadistico-consulta-por-colaborador/obtener','App\Http\Controllers\pages\reportes\ReportesDescargaController@obtenerConsultasPorColaborador');
+      Route::post('/estadistico-consulta-por-colaborador/exportar','App\Http\Controllers\pages\reportes\ReportesDescargaController@exportarConsultasPorColaborador');
+      Route::post('/estadistico-consulta-total-por-colaborador/obtener','App\Http\Controllers\pages\reportes\ReportesDescargaController@obtenerConsultasTotalesPorColaborador');
+      Route::post('/estadistico-consulta-total-por-colaborador/exportar','App\Http\Controllers\pages\reportes\ReportesDescargaController@exportarConsultasTotalesPorColaborador');
+      Route::post('/estadistico-consulta-media-mediana-moda/obtener','App\Http\Controllers\pages\reportes\ReportesDescargaController@obtenerMediaMedianaModa');
+      Route::post('/estadistico-consulta-media-mediana-moda/exportar','App\Http\Controllers\pages\reportes\ReportesDescargaController@exportarMediaMedianaModa');
+      Route::post('/estadistico-medicamento-mas-recetado/obtener','App\Http\Controllers\pages\reportes\ReportesDescargaController@obtenerMedicamentoMasRecetado');
+      Route::post('/estadistico-medicamento-mas-recetado/exportar','App\Http\Controllers\pages\reportes\ReportesDescargaController@exportarMedicamentoMasRecetado');
+      Route::post('/estadistico-motivos-visita-frecuentes/obtener','App\Http\Controllers\pages\reportes\ReportesDescargaController@obtenerMotivosVisitaMasFrecuentes');
+      Route::post('/estadistico-motivos-visita-frecuentes/exportar','App\Http\Controllers\pages\reportes\ReportesDescargaController@exportarMotivosVisitaMasFrecuentes');
     });
   });
 

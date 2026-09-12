@@ -206,4 +206,473 @@ class ReportesDescargaController extends Controller
     return Excel::download(new DynamicExportQuery($query, $columnas),"Reporte_Consultas_" . now()->format('Ymd_His') . ".xlsx");
   }
 
+  public function obtenerConsultasPorColaborador(Request $request)
+  {
+    $request->validate([
+        'fecha_inicio' => 'required|date',
+        'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
+    ]);
+
+    $fechaInicio = $request->fecha_inicio;
+    $fechaFin = $request->fecha_fin;
+
+    $datos = DB::table('paciente_datos_consulta as pdc')
+      ->join('paciente as p', function ($join) {
+        $join->on('p.id', '=', 'pdc.paciente_id')->where('p.borrado', 0);
+      })
+      ->where('pdc.borrado', 0)
+      ->whereBetween('pdc.created_at', [$fechaInicio . ' 00:00:00', $fechaFin . ' 23:59:59'])
+      ->select(
+        'p.gafete as colaborador_clave',
+        DB::raw("CONCAT(p.nombre, ' ', p.apellido_paterno, ' ', p.apellido_materno) AS colaborador_nombre"),
+        DB::raw('EXTRACT(WEEK FROM pdc.created_at) AS numero_semana'),
+        DB::raw('EXTRACT(YEAR FROM pdc.created_at) AS anio'),
+        DB::raw('COUNT(pdc.id) AS numero_consultas')
+      )
+      ->groupBy(
+        'p.gafete',
+        'p.nombre',
+        'p.apellido_paterno',
+        'p.apellido_materno',
+        DB::raw('EXTRACT(WEEK FROM pdc.created_at)'),
+        DB::raw('EXTRACT(YEAR FROM pdc.created_at)')
+      )
+      ->orderBy('anio')
+      ->orderBy('numero_semana')
+      ->get();
+
+    return response()->json([
+      'error' => false,
+      'total_colaboradores' => $datos->unique('colaborador_clave')->count(),
+      'total_consultas' => $datos->sum('numero_consultas'),
+      'datos' => $datos
+    ]);
+  }
+
+  public function exportarConsultasPorColaborador(Request $request)
+  {
+    ini_set('max_execution_time', 1200);
+    ini_set('memory_limit', '2048M');
+
+    $fechaInicio = $request->fecha_inicio;
+    $fechaFin = $request->fecha_fin;
+
+    if (!$fechaInicio || !$fechaFin) {
+      return response()->json(['error' => true, 'mensaje' => 'Debes seleccionar un rango de fechas.'], 422);
+    }
+
+    $query = DB::table('paciente_datos_consulta as pdc')
+    ->join('paciente as p', function ($join) {
+      $join->on('p.id', '=', 'pdc.paciente_id')->where('p.borrado', 0);
+    })
+    ->where('pdc.borrado', 0)
+    ->whereBetween('pdc.created_at', [$fechaInicio . ' 00:00:00', $fechaFin . ' 23:59:59'])
+    ->select(
+      'p.gafete as colaborador_clave',
+      DB::raw("CONCAT( p.nombre, ' ', p.apellido_paterno, ' ', p.apellido_materno ) AS colaborador_nombre"),
+      DB::raw("EXTRACT(WEEK FROM pdc.created_at) AS numero_semana"),
+      DB::raw("COUNT(pdc.id) AS numero_consultas"),
+      DB::raw("EXTRACT(YEAR FROM pdc.created_at) AS anio")
+    )
+    ->groupBy(
+      'p.gafete',
+      'p.nombre',
+      'p.apellido_paterno',
+      'p.apellido_materno',
+      DB::raw('EXTRACT(WEEK FROM pdc.created_at)'),
+      DB::raw('EXTRACT(YEAR FROM pdc.created_at)')
+    )
+    ->orderBy('anio')
+    ->orderBy('numero_semana')
+    ->orderBy('numero_consultas', 'DESC');
+
+    $columnas = [
+      'colaborador_clave',
+      'colaborador_nombre',
+      'numero_semana',
+      'numero_consultas',
+      'anio'
+    ];
+
+    return Excel::download(new DynamicExportQuery($query, $columnas), 'Reporte_Consultas_Semanales_Colaborador_' . now()->format('Ymd_His') . '.xlsx');
+  }
+
+  public function obtenerConsultasTotalesPorColaborador(Request $request)
+  {
+    $request->validate([
+        'fecha_inicio' => 'required|date',
+        'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
+    ]);
+
+    $fechaInicio = $request->fecha_inicio;
+    $fechaFin = $request->fecha_fin;
+
+    $datos = DB::table('paciente_datos_consulta as pdc')
+      ->join('paciente as p', function ($join) {
+        $join->on('p.id', '=', 'pdc.paciente_id')->where('p.borrado', 0);
+      })
+      ->where('pdc.borrado', 0)
+      ->whereBetween('pdc.created_at', [$fechaInicio . ' 00:00:00', $fechaFin . ' 23:59:59'])
+      ->select(
+        'p.gafete as colaborador_clave',
+        DB::raw("CONCAT(p.nombre, ' ', p.apellido_paterno, ' ', p.apellido_materno) AS colaborador_nombre"),
+        DB::raw('COUNT(pdc.id) AS numero_consultas')
+      )
+      ->groupBy(
+        'p.gafete',
+        'p.nombre',
+        'p.apellido_paterno',
+        'p.apellido_materno'
+      )
+      ->orderBy('numero_consultas', 'DESC')
+      ->get();
+
+    return response()->json([
+      'error' => false,
+      'total_colaboradores' => $datos->unique('colaborador_clave')->count(),
+      'total_consultas' => $datos->sum('numero_consultas'),
+      'datos' => $datos
+    ]);
+  }
+
+  public function exportarConsultasTotalesPorColaborador(Request $request)
+  {
+    ini_set('max_execution_time', 1200);
+    ini_set('memory_limit', '2048M');
+
+    $fechaInicio = $request->fecha_inicio;
+    $fechaFin = $request->fecha_fin;
+
+    if (!$fechaInicio || !$fechaFin) {
+      return response()->json(['error' => true, 'mensaje' => 'Debes seleccionar un rango de fechas.'], 422);
+    }
+
+    $query = DB::table('paciente_datos_consulta as pdc')
+    ->join('paciente as p', function ($join) {
+      $join->on('p.id', '=', 'pdc.paciente_id')->where('p.borrado', 0);
+    })
+    ->where('pdc.borrado', 0)
+    ->whereBetween('pdc.created_at', [$fechaInicio . ' 00:00:00', $fechaFin . ' 23:59:59'])
+    ->select(
+      'p.gafete as colaborador_clave',
+      DB::raw("CONCAT( p.nombre, ' ', p.apellido_paterno, ' ', p.apellido_materno ) AS colaborador_nombre"),
+      DB::raw("COUNT(pdc.id) AS numero_consultas")
+    )
+    ->groupBy(
+      'p.gafete',
+      'p.nombre',
+      'p.apellido_paterno',
+      'p.apellido_materno',
+    )
+    ->orderBy('numero_consultas', 'DESC');
+
+    $columnas = [
+      'colaborador_clave',
+      'colaborador_nombre',
+      'numero_consultas',
+    ];
+
+    return Excel::download(new DynamicExportQuery($query, $columnas), 'Reporte_Consultas_Totales_Colaborador_' . now()->format('Ymd_His') . '.xlsx');
+  }
+
+  public function obtenerMediaMedianaModa(Request $request)
+  {
+    $request->validate([
+        'fecha_inicio' => 'required|date',
+        'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
+    ]);
+
+    $fechaInicio = $request->fecha_inicio . ' 00:00:00';
+    $fechaFin = $request->fecha_fin . ' 23:59:59';
+
+    $datos = DB::select("
+      WITH consultas_semana AS (
+        SELECT
+          p.gafete AS colaborador_clave,
+          CONCAT(p.nombre, ' ', p.apellido_paterno, ' ', p.apellido_materno) AS colaborador_nombre,
+          DATE_TRUNC('week', pdc.created_at) AS semana,
+          COUNT(pdc.id) AS consultas_semana
+        FROM paciente_datos_consulta pdc
+        JOIN paciente p ON p.id = pdc.paciente_id AND p.borrado = 0
+        WHERE pdc.borrado = 0 AND pdc.created_at BETWEEN ? AND ?
+        GROUP BY
+          p.gafete,
+          p.nombre,
+          p.apellido_paterno,
+          p.apellido_materno,
+          DATE_TRUNC('week', pdc.created_at)
+      )
+      SELECT
+        colaborador_clave,
+        colaborador_nombre,
+        ROUND(AVG(consultas_semana), 2) AS media,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY consultas_semana) AS mediana,
+        MODE() WITHIN GROUP (ORDER BY consultas_semana) AS moda,
+        SUM(consultas_semana) AS total_consultas
+      FROM consultas_semana
+      GROUP BY
+        colaborador_clave,
+        colaborador_nombre
+      ORDER BY total_consultas DESC
+    ", [
+      $fechaInicio,
+      $fechaFin
+    ]);
+
+    return response()->json([
+      'error' => false,
+      'total_colaboradores' => count($datos),
+      'total_consultas' => collect($datos)->sum('total_consultas'),
+      'datos' => $datos
+    ]);
+  }
+
+  public function exportarMediaMedianaModa(Request $request)
+  {
+    ini_set('max_execution_time', 1200);
+    ini_set('memory_limit', '2048M');
+
+    $fechaInicio = $request->fecha_inicio;
+    $fechaFin = $request->fecha_fin;
+
+    if (!$fechaInicio || !$fechaFin) {
+      return response()->json(['error' => true, 'mensaje' => 'Debes seleccionar un rango de fechas.'], 422);
+    }
+
+    $fechaInicio = $fechaInicio . ' 00:00:00';
+    $fechaFin = $fechaFin . ' 23:59:59';
+
+    $query = DB::table(DB::raw('(
+      SELECT
+        colaborador_clave,
+        colaborador_nombre,
+        ROUND(AVG(consultas_semana), 2) AS media,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY consultas_semana) AS mediana,
+        MODE() WITHIN GROUP (ORDER BY consultas_semana) AS moda,
+        SUM(consultas_semana) AS total_consultas
+      FROM (
+        SELECT
+          p.gafete AS colaborador_clave,
+          CONCAT(p.nombre, \' \', p.apellido_paterno, \' \', p.apellido_materno) AS colaborador_nombre,
+          DATE_TRUNC(\'week\', pdc.created_at) AS semana,
+          COUNT(pdc.id) AS consultas_semana
+        FROM paciente_datos_consulta pdc
+          JOIN paciente p ON p.id = pdc.paciente_id AND p.borrado = 0
+        WHERE pdc.borrado = 0 AND pdc.created_at BETWEEN ? AND ?
+        GROUP BY
+          p.gafete,
+          p.nombre,
+          p.apellido_paterno,
+          p.apellido_materno,
+          DATE_TRUNC(\'week\', pdc.created_at)
+        ) AS consultas_semana
+      GROUP BY
+        colaborador_clave,
+        colaborador_nombre
+    ) AS estadisticas'))
+    ->setBindings([
+        $fechaInicio,
+        $fechaFin
+    ])
+    ->orderByDesc('total_consultas');
+
+    $columnas = [
+      'colaborador_clave',
+      'colaborador_nombre',
+      'media',
+      'mediana',
+      'moda',
+      'total_consultas',
+    ];
+    
+    return Excel::download(new DynamicExportQuery($query, $columnas),'Reporte_Media_Mediana_Moda_' . now()->format('Ymd_His') . '.xlsx');
+  }
+
+  public function obtenerMedicamentoMasRecetado(Request $request)
+  {
+    $request->validate([
+      'fecha_inicio' => 'required|date',
+      'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
+    ]);
+
+    $fechaInicio = $request->fecha_inicio . ' 00:00:00';
+    $fechaFin = $request->fecha_fin . ' 23:59:59';
+
+    $datos = DB::select("
+      SELECT
+        rm.medicamento_codigo,
+        rm.medicamento_nombre AS medicamento,
+        COUNT(*) AS total_recetas,
+        SUM(
+          CASE
+            WHEN TRIM(rm.cantidad_solicitada) ~ '^[0-9]+(\\.[0-9]+)?$'
+            THEN TRIM(rm.cantidad_solicitada)::numeric
+          ELSE 0
+          END
+        ) AS total_cantidad_solicitada
+      FROM receta r
+      JOIN receta_medicamento rm ON rm.receta_id = r.id AND rm.borrado = 0 
+      WHERE r.borrado = 0 AND r.created_at BETWEEN ? AND ?
+      GROUP BY
+        rm.medicamento_codigo,
+        rm.medicamento_nombre
+      ORDER BY total_recetas DESC
+    ", [
+      $fechaInicio,
+      $fechaFin
+    ]);
+
+    $totalRecetas = collect($datos)->sum('total_recetas');
+
+    $datos = collect($datos)->map(function ($item) use ($totalRecetas) {
+        $item->porcentaje = $totalRecetas > 0 ? round(($item->total_recetas / $totalRecetas) * 100, 2) : 0;
+        return $item;
+    })->values();
+
+    return response()->json([
+      'error' => false,
+      'total_medicamentos' => $datos->count(),
+      'total_recetas' => $totalRecetas,
+      'medicamento_mas_recetado' => $datos->first(),
+      'datos' => $datos
+    ]);
+  }
+
+  public function exportarMedicamentoMasRecetado(Request $request)
+  {
+    ini_set('max_execution_time', 1200);
+    ini_set('memory_limit', '2048M');
+
+    $request->validate([
+        'fecha_inicio' => 'required|date',
+        'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
+    ]);
+
+    $fechaInicio = $request->fecha_inicio . ' 00:00:00';
+    $fechaFin = $request->fecha_fin . ' 23:59:59';
+
+    $query = DB::table('receta as r')
+    ->join('receta_medicamento as rm', function ($join) {
+      $join->on('rm.receta_id', '=', 'r.id')
+      ->where('rm.borrado', 0);
+    })
+    ->where('r.borrado', 0)
+    ->whereBetween('r.created_at', [$fechaInicio, $fechaFin])
+    ->select(
+      'rm.medicamento_codigo',
+      'rm.medicamento_nombre as medicamento',
+      DB::raw('COUNT(*) AS total_recetas'),
+      DB::raw("
+        SUM(
+          CASE
+          WHEN TRIM(rm.cantidad_solicitada) ~ '^[0-9]+(\\.[0-9]+)?$'
+          THEN TRIM(rm.cantidad_solicitada)::numeric
+          ELSE 0
+          END
+        ) AS total_cantidad_solicitada
+      ")
+    )
+    ->groupBy(
+      'rm.medicamento_codigo',
+      'rm.medicamento_nombre'
+    )
+    ->orderByDesc('total_recetas');
+
+    $columnas = [
+      'Código medicamento',
+      'Medicamento',
+      'Total recetas',
+      'Total cantidad solicitada',
+    ];
+
+    return Excel::download(new DynamicExportQuery($query, $columnas), 'Reporte_Medicamentos_Mas_Recetados_' . now()->format('Ymd_His') . '.xlsx');
+  }
+
+  public function obtenerMotivosVisitaMasFrecuentes(Request $request)
+  {
+    $request->validate([
+        'fecha_inicio' => 'required|date',
+        'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
+    ]);
+
+    $fechaInicio = $request->fecha_inicio . ' 00:00:00';
+    $fechaFin = $request->fecha_fin . ' 23:59:59';
+
+    $datos = DB::table('paciente as p')
+    ->join('paciente_datos_consulta as pdc', function ($join) {
+      $join->on('pdc.paciente_id', '=', 'p.id')
+      ->where('pdc.borrado', 0);
+    })
+    ->join('paciente_tipo_visita as ptv', function ($join) {
+      $join->on('pdc.paciente_tipo_visita_id', '=', 'ptv.id')
+      ->where('ptv.borrado', 0);
+    })
+    ->where('p.borrado', 0)
+    ->whereBetween('pdc.created_at', [$fechaInicio, $fechaFin])
+    ->select(
+      'pdc.cie_descripcion as motivo_visita',
+      DB::raw('COUNT(pdc.id) AS total_consultas')
+    )
+    ->groupBy(
+      'pdc.cie_descripcion'
+    )
+    ->orderByDesc('total_consultas')
+    ->get();
+
+    $totalConsultas = $datos->sum('total_consultas');
+
+    $datos = $datos->map(function ($item) use ($totalConsultas) {
+      $item->porcentaje = $totalConsultas > 0 ? round(($item->total_consultas / $totalConsultas) * 100, 2) : 0;
+      return $item;
+    })->values();
+
+    return response()->json([
+      'error' => false,
+      'total_motivos' => $datos->count(),
+      'total_consultas' => $totalConsultas,
+      'motivo_mas_frecuente' => $datos->first(),
+      'datos' => $datos
+    ]);
+  }
+
+  public function exportarMotivosVisitaMasFrecuentes(Request $request)
+{
+    ini_set('max_execution_time', 1200);
+    ini_set('memory_limit', '2048M');
+
+    $request->validate([
+        'fecha_inicio' => 'required|date',
+        'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
+    ]);
+
+    $fechaInicio = $request->fecha_inicio . ' 00:00:00';
+    $fechaFin = $request->fecha_fin . ' 23:59:59';
+
+    $query = DB::table('paciente as p')
+    ->join('paciente_datos_consulta as pdc', function ($join) {
+      $join->on('pdc.paciente_id', '=', 'p.id')
+      ->where('pdc.borrado', 0);
+    })
+    ->join('paciente_tipo_visita as ptv', function ($join) {
+      $join->on('pdc.paciente_tipo_visita_id', '=', 'ptv.id')
+      ->where('ptv.borrado', 0);
+    })
+    ->where('p.borrado', 0)
+    ->whereBetween('pdc.created_at', [$fechaInicio, $fechaFin])
+    ->select(
+      'pdc.cie_descripcion as motivo_visita',
+      DB::raw('COUNT(pdc.id) AS total_consultas')
+    )
+    ->groupBy(
+      'pdc.cie_descripcion'
+    )
+    ->orderByDesc('total_consultas');
+
+    $columnas = [
+      'Motivo de visita',
+      'Total consultas',
+    ];
+
+    return Excel::download(new DynamicExportQuery($query, $columnas), 'Reporte_Motivos_Visita_' . now()->format('Ymd_His') . '.xlsx');
+  }
 }

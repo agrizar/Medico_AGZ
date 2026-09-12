@@ -227,6 +227,20 @@
             5,
             6
           ]
+        },
+        {
+          "url": "/reportes/estadisticas",
+          "name": "Rep. estadístico",
+          "icon": "menu-icon me-1 tf-icons mdi mdi-chart-bar-stacked",
+          "slug": "reporte-estadistico",
+          "perfiles": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
         }
       ]
     },

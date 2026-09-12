@@ -72,4 +72,14 @@ class ReportesController extends Controller
       return view('content.pages.pages-misc-error');
     }
   }
+
+  public function estadisticas(Request $request)
+  {
+    if(Auth::user()->usuario_perfil_id == 1 || Auth::user()->usuario_perfil_id == 2 || Auth::user()->usuario_perfil_id == 3 || Auth::user()->usuario_perfil_id == 4 || Auth::user()->usuario_perfil_id == 5){
+      $view_data = [];
+      return view('content.pages.reportes.estadisticas', ['datos_vista' => $view_data]);
+    } else {
+      return view('content.pages.pages-misc-error');
+    }
+  }
 }

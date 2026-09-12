@@ -61,23 +61,9 @@ class DynamicExportQuery implements FromQuery, WithHeadings, WithEvents
         $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); # Centrado
         $sheet->setAutoFilter($headerRange); # Autofiltro
 
-        # Merge celdas con valores idénticos en columnas específicas
+        # Ajustar ancho de columnas
         foreach ($columns as $col) {
           $sheet->getColumnDimension($col)->setAutoSize(true);
-          $start = 2; # inicia después de los headings
-
-          for ($row = 3; $row <= $highestRow + 1; $row++) {
-            $prev = $sheet->getCell("$col" . ($row - 1))->getValue();
-            $curr = $sheet->getCell("$col$row")->getValue();
-
-            if ($prev !== $curr) {
-              if ($row - 1 > $start) {
-                $sheet->mergeCells("$col$start:$col" . ($row - 1));
-                $sheet->getStyle("$col$start")->getAlignment()->setVertical('center');
-              }
-              $start = $row;
-            }
-          }
         }
       }
     ];
