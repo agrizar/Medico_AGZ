@@ -80,6 +80,8 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('api')->group(function () {
       Route::post('/registrar-historico', 'App\Http\Controllers\pages\historicoClinico\HistoricoClinicoController@registrarHistoricoClinico')->name('registrar-historico');
       Route::post('/obtener-lista-historicos-clinicos', 'App\Http\Controllers\pages\historicoClinico\HistoricoClinicoSeguimientoController@obtenerListadoHistoricosClinicos')->name('obtener-lista-historicos-clinicos');
+      Route::post('/modificar-calificacion', 'App\Http\Controllers\pages\historicoClinico\HistoricoClinicoSeguimientoController@modificarCalificacion')->name('modificar-calificacion');
+      Route::post('/obtener-movimientos-calificacion', 'App\Http\Controllers\pages\historicoClinico\HistoricoClinicoSeguimientoController@obtenerMovimientosCalificacion')->name('obtener-movimientos-calificacion');
     });
   });
 
