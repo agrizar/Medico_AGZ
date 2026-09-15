@@ -13,6 +13,6 @@ class HistoricoClinicoCalificacionMovimientoModel extends Model
         'calificacion_anterior',
         'calificacion_nueva',
         'usuario_id',
-        'fecha_movimiento'
+        'created_at'
     ];
 }

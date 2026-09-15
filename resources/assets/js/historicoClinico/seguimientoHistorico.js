@@ -439,8 +439,8 @@ function verMovimientosCalificacion(historicoId, nombrePaciente) {
       movimientos.forEach(function(movimiento, index) {
         const anterior = obtenerEstiloCalificacion(movimiento.calificacion_anterior);
         const nueva = obtenerEstiloCalificacion(movimiento.calificacion_nueva);
-        const fecha = moment(movimiento.fecha_movimiento).format('DD/MM/YYYY');
-        const hora = moment(movimiento.fecha_movimiento).format('HH:mm:ss');
+        const fecha = moment(movimiento.created_at).format('DD/MM/YYYY');
+        const hora = moment(movimiento.created_at).format('HH:mm:ss');
 
         timeline += `
           <div class="movimiento-item">${index < movimientos.length - 1 ? `<div class="movimiento-linea"></div>` : ''}
