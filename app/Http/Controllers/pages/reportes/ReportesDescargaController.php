@@ -237,8 +237,7 @@ class ReportesDescargaController extends Controller
         DB::raw('EXTRACT(WEEK FROM pdc.created_at)'),
         DB::raw('EXTRACT(YEAR FROM pdc.created_at)')
       )
-      ->orderBy('anio')
-      ->orderBy('numero_semana')
+      ->orderBy('numero_consultas', 'DESC')
       ->get();
 
     return response()->json([
@@ -282,8 +281,6 @@ class ReportesDescargaController extends Controller
       DB::raw('EXTRACT(WEEK FROM pdc.created_at)'),
       DB::raw('EXTRACT(YEAR FROM pdc.created_at)')
     )
-    ->orderBy('anio')
-    ->orderBy('numero_semana')
     ->orderBy('numero_consultas', 'DESC');
 
     $columnas = [
