@@ -87,36 +87,88 @@ $(document).ready(function () {
   });
 });
 
-function colocarPacienteEnReceta(elm) {
-  const pacienteGafete = elm.value;
-  const empleado = datos_vista.todos_empleados_apsi.find(emp => emp.codigo == pacienteGafete);
-  if (empleado) {
-    $('#paciente_receta-nombre').text(`${empleado.nombre} ${empleado.ap_paterno} ${empleado.ap_materno}`);
-    const curp = empleado.curp || '';
-    const edad = obtenerEdadDesdeCURP(curp);
-    $('#paciente_receta-edad').text(edad !== null ? edad : 'N/A');
+let empleadoSeleccionado = null;
+formateaCampoNumeroEmpleado("[name='empleado[gafete]']");
+
+$(document).on('click', '#btn-buscar-empleado', function () {
+  buscarEmpleadoPorGafete();
+});
+
+$(document).on('keypress', '#empleado-gafete-input', function (e) {
+  if (e.which === 13) {
+    e.preventDefault();
+    buscarEmpleadoPorGafete();
   }
+});
+
+function buscarEmpleadoPorGafete() {
+  const gafete = $('#empleado-gafete-input').val().trim();
+
+  if (!gafete) {
+    alertify.error('Ingresa un número de gafete.');
+    return;
+  }
+
+  pantallaCarga('on');
+  const csrfToken = $('meta[name="csrf-token"]').attr('content');
+
+  $.ajax({
+    url: '/receta/api/buscar-empleado-fortia',
+    method: 'POST',
+    data: { gafete: gafete },
+    headers: { 'X-CSRF-TOKEN': csrfToken },
+    success: function (response) {
+      pantallaCarga('off');
+
+      if (response.error) {
+        empleadoSeleccionado = null;
+        $('#paciente_receta-nombre').text('');
+        $('#paciente_receta-edad').text('');
+        alertify.error(response.msg || 'Empleado no encontrado.');
+        return;
+      }
+
+      const emp = response.empleado;
+      empleadoSeleccionado = emp;
+
+      $('#paciente_receta-nombre').text(
+        `${emp.nombre} ${emp.ap_paterno} ${emp.ap_materno}`.trim()
+      );
+
+      const edad = obtenerEdadDesdeCURP(emp.curp || '');
+      $('#paciente_receta-edad').text(edad !== null ? edad : 'N/A');
+
+      alertify.success('Empleado encontrado.');
+    },
+    error: function () {
+      pantallaCarga('off');
+      empleadoSeleccionado = null;
+      alertify.error('No fue posible consultar el empleado. Intenta de nuevo.');
+    }
+  });
 }
 
 function guardarReceta() {
+  if (!empleadoSeleccionado) {
+    alertify.error('Debes buscar y seleccionar un empleado antes de guardar.');
+    return;
+  }
+
   var formElement = document.getElementById('form-receta');
   var formData = new FormData(formElement);
 
   formData.append('medicamentos', JSON.stringify(arrayMedicamentosReceta));
 
-  var selectPaciente = document.getElementById('empleado-gafete');
-  var option = selectPaciente.options[selectPaciente.selectedIndex];
-  if (option) {
-    formData.append('empleado[genero]', option.getAttribute('data-genero'));
-    formData.append('empleado[curp]', option.getAttribute('data-curp'));
-    formData.append('empleado[nombre]', option.getAttribute('data-nombre'));
-    formData.append('empleado[apellido_paterno]', option.getAttribute('data-ap_paterno'));
-    formData.append('empleado[apellido_materno]', option.getAttribute('data-ap_materno'));
-    formData.append('empleado[edad]', obtenerEdadDesdeCURP(option.getAttribute('data-curp')));
-  }
+  formData.append('empleado[gafete]',           empleadoSeleccionado.codigo);
+  formData.append('empleado[genero]',           empleadoSeleccionado.genero);
+  formData.append('empleado[curp]',             empleadoSeleccionado.curp);
+  formData.append('empleado[nombre]',           empleadoSeleccionado.nombre);
+  formData.append('empleado[apellido_paterno]', empleadoSeleccionado.ap_paterno);
+  formData.append('empleado[apellido_materno]', empleadoSeleccionado.ap_materno);
+  formData.append('empleado[edad]',
+    obtenerEdadDesdeCURP(empleadoSeleccionado.curp || ''));
 
   var csrfToken = $('meta[name="csrf-token"]').attr('content');
-
   pantallaCarga('on');
 
   $.ajax({
@@ -130,7 +182,10 @@ function guardarReceta() {
       pantallaCarga('off');
       if (response.error == false) {
         window.print();
-        $('#empleado-gafete').val('').trigger('change');
+
+        // Limpieza
+        empleadoSeleccionado = null;
+        $('#empleado-gafete-input').val('');
         $('#paciente_receta-nombre').text('');
         $('#paciente_receta-edad').text('');
         $('#receta-medicamento_indicaciones').val('');
@@ -148,7 +203,7 @@ function guardarReceta() {
       }
     },
     error: function () {
-      console.log('Error en la solicitud');
+      pantallaCarga('off');
       alertify.error('No fue posible guardar la nota. Inténtalo de nuevo.');
     }
   });
