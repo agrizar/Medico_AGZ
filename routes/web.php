@@ -40,7 +40,7 @@ Route::middleware(['auth'])->group(function () {
     # ****************************************************************************************
 
     Route::prefix('api')->group(function () {
-      Route::post('/consultar', 'App\Http\Controllers\pages\pacientes\PacientesController@consultarPacienteApsi')->name('consultar-paciente');
+      Route::post('/consultar', 'App\Http\Controllers\pages\pacientes\PacientesController@consultarPacienteFortia')->name('consultar-paciente');
       Route::post('/registrar', 'App\Http\Controllers\pages\pacientes\PacientesController@registrarPaciente')->name('registrar-paciente');
       Route::post('/guardar-valoracion', 'App\Http\Controllers\pages\pacientes\PacientesController@guardarValoracionPaciente')->name('guardar-valoracion-paciente');
       Route::post('/obtener-lista-pacientes', 'App\Http\Controllers\pages\pacientes\PacientesSeguimientoController@obtenerListadoPacientes')->name('obtener-lista-pacientes');
@@ -66,6 +66,7 @@ Route::middleware(['auth'])->group(function () {
       Route::get('/obtener-detalle-receta', 'App\Http\Controllers\pages\receta\RecetaController@obtenerDetalleReceta')->name('obtener-detalle-receta');
       Route::get('/surtir-receta-completa', 'App\Http\Controllers\pages\receta\RecetaController@surtirRecetaCompleta')->name('surtir-receta-completa');
       Route::post('/guardar-firma-paciente', 'App\Http\Controllers\pages\receta\RecetaController@guardarFirma')->name('guardar-firma-paciente');
+      Route::post('/buscar-empleado-fortia', 'App\Http\Controllers\pages\receta\RecetaController@buscarEmpleadoFortia')->name('buscar-empleado-fortia');
     });
   });
 

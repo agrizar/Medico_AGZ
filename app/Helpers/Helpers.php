@@ -223,4 +223,127 @@ class Helpers
       }
       return $select;
   }
+  
+  /**
+   * Obtiene un token de autenticación para las APIs de Fortia.
+   */
+  public static function obtenerTokenAPISFortia($forzarNuevo = false)
+  {
+    static $token = null;
+
+    if ($token !== null && !$forzarNuevo) {
+      return $token;
+    }
+
+    $data = [
+      'Username' => env('API_FORTIA_USER'),
+      'Password' => env('API_FORTIA_PASS'),
+    ];
+
+    $curl = curl_init();
+
+    curl_setopt_array($curl, [
+      CURLOPT_URL => rtrim(env('ENDPOINT_APIS_FORTIA'), '/') . '/login/authenticate',
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_POST => true,
+      CURLOPT_POSTFIELDS => json_encode($data),
+      CURLOPT_HTTPHEADER => [
+        'Content-Type: application/json',
+        'Accept: application/json',
+      ],
+      CURLOPT_SSL_VERIFYPEER => false,
+      CURLOPT_SSL_VERIFYHOST => 0,
+      CURLOPT_CONNECTTIMEOUT => 5,
+      CURLOPT_TIMEOUT => 10,
+    ]);
+
+    $response = curl_exec($curl);
+
+    if ($response === false) {
+      $error = curl_error($curl);
+      curl_close($curl);
+      throw new \RuntimeException('Error Curl al autenticar con Fortia: ' . $error);
+    }
+
+    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+
+    $token = json_decode($response, true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+      throw new \RuntimeException('La autenticación de Fortia devolvió una respuesta no JSON. HTTP: ' . $httpCode);
+    }
+
+    return $token;
+  }
+
+  /**
+   * Ejecuta una petición GET contra Fortia.
+   */
+  public static function ejecutarCurlFortia($endpoint, $token)
+  {
+    $url = rtrim(env('ENDPOINT_APIS_FORTIA'), '/') . '/' . ltrim($endpoint, '/');
+    $curl = curl_init();
+
+    curl_setopt_array($curl, [
+      CURLOPT_URL => $url,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_HTTPGET => true,
+      CURLOPT_HTTPHEADER => [
+        "Authorization: Bearer {$token}",
+        'Accept: application/json',
+      ],
+      CURLOPT_CONNECTTIMEOUT => 5,
+      CURLOPT_TIMEOUT => 30,
+      CURLOPT_SSL_VERIFYPEER => false,
+      CURLOPT_SSL_VERIFYHOST => 0,
+    ]);
+
+    $response = curl_exec($curl);
+
+    if ($response === false) {
+      $error = curl_error($curl);
+      curl_close($curl);
+      throw new \RuntimeException('Error de conexión con Fortia: ' . $error);
+    }
+
+    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+
+    return [
+      'status' => $httpCode,
+      'data' => json_decode($response, true),
+    ];
+  }
+
+  /**
+   * Consume una API de Fortia y renueva el token si expira.
+   */
+  public static function consumirFortiaAPI($endpoint, $params = [])
+  {
+    $query = $params ? '?' . http_build_query($params) : '';
+
+    $token = self::obtenerTokenAPISFortia();
+
+    $response = self::ejecutarCurlFortia(
+      $endpoint . $query,
+      $token
+    );
+
+    if ($response['status'] === 401) {
+      $token = self::obtenerTokenAPISFortia(true);
+      $response = self::ejecutarCurlFortia($endpoint . $query, $token);
+    }
+
+    return $response;
+  }
+
+  /**
+   * Obtiene los datos de un empleado desde Fortia.
+   */
+  public static function obtenerDatosEmpleadoFortia($params = [])
+  {
+    return self::consumirFortiaAPI('personnel-management/employee', $params);
+  }
+
 }

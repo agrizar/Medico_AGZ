@@ -55,21 +55,22 @@ $universidadEgreso = $receta ? $receta['universidad_egreso'] : Auth::user()->uni
 <form id="form-receta" method="POST" enctype="multipart/form-data" onSubmit="return false">
     @csrf
 
-    <div class="row no-imprimir {{ $receta ? 'd-none' : '' }}" style="justify-content: center; align-items: center;">
+    <div class="row no-imprimir {{ $receta ? 'd-none' : '' }}" style="justify-content: center;">
         <div class="col-md-6 mb-4">
-            <div class="form-floating form-floating-outline mb-6">
-                <select class="form-select select2 form-select-sm" id="empleado-gafete" name="empleado[gafete]" onchange="colocarPacienteEnReceta(this)">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-8">
+                    <div class="form-floating form-floating-outline">
+                        <input type="text" id="empleado-gafete-input" name="empleado[gafete]"
+                            class="form-control" placeholder="Ej. 12345" autocomplete="off">
+                        <label for="empleado-gafete-input">Gafete del paciente <i class="text-danger">*</i></label>
+                    </div>
+                </div>
 
-                    <option value="" selected disabled>Selecciona una opción</option>
-
-                    @foreach ($datos_vista['todos_empleados_apsi'] as $empleado)
-                    <option value="{{ $empleado['codigo'] }}" data-genero="{{ $empleado['sexo'] }}" data-curp="{{ $empleado['curp'] }}" data-nombre="{{ $empleado['nombre'] }}" data-ap_paterno="{{ $empleado['ap_paterno'] }}" data-ap_materno="{{ $empleado['ap_materno'] }}" {{ ($receta['paciente_gafete'] ?? null) == $empleado['codigo'] ? 'selected' : '' }}>
-                        {{ $empleado['nombre'] . ' ' . $empleado['ap_paterno'] . ' ' . $empleado['ap_materno'] }}
-                    </option>
-                    @endforeach
-
-                </select>
-                <label for="empleado-gafete">Paciente <i class="text-danger">*</i></label>
+                <div class="col-md-4 align-self-end">
+                    <button type="button" class="btn btn-primary w-100" id="btn-buscar-empleado">
+                        <i class="mdi mdi-magnify me-1"></i> Buscar
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -325,16 +326,15 @@ $universidadEgreso = $receta ? $receta['universidad_egreso'] : Auth::user()->uni
 
                     <div class="col-md-11 col-sm-11 text-start">
                         <h5 class="text-primary">
-                            La presente receta tiene vigencia únicamente durante el día de su emisión
-                            [{{ isset($receta['fecha_creacion']) ? date('d/m/Y', strtotime($receta['fecha_creacion'])) : now()->format('d/m/Y') }}].
-
+                            La presente receta tiene una vigencia de 72 horas a partir de su emisión
+                            [{{ isset($receta['fecha_creacion']) ? date('d/m/Y H:i', strtotime($receta['fecha_creacion'])) : now()->format('d/m/Y H:i') }}].
                             <br>
-
                             <span class="text-danger">
-                                <strong>A partir del día siguiente dejará de ser válida.</strong>
+                                <strong>Una vez transcurrido este periodo, la receta dejará de ser válida.</strong>
                             </span>
                         </h5>
                     </div>
+
                 </div>
 
                 <div class="row">

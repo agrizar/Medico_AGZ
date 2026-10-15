@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\pages\pacientes;
 
+use App\Helpers\Helpers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -39,23 +40,19 @@ class PacientesController extends Controller
     }
   }
 
-  public function consultarPacienteApsi(Request $request)
+  public function consultarPacienteFortia(Request $request)
   {
     # Obtiene el número de empleado desde el formulario enviado por POST
     $numeroEmpleado = $request->input('filtro.paciente_numero_gafete');
 
-    # URL de la API ubicada en el KUDE
-    $url =  env('API_URL_KUDE') . '/buscaEmpleadoAPSI.php';
-
     try {
-
       # Buscar un paciente por el gafete para ver si esta ya registrado en el sistema
       $pacienteExistente = PacienteModel::where('gafete', $numeroEmpleado)->where('borrado', 0)->first();
 
       if ($pacienteExistente) {
         # Respuesta de la solicitud HTTP si ya existe el paciente registrado
         return response()->json([
-          'bandera' => 1,
+          'bandera' => 201,
           'bandera_descripcion' => 'El paciente ya cuenta con registros en el sistema',
           'error' => false,
           'msg' => 'El paciente ya cuenta con expediente en el sistema',
@@ -76,27 +73,45 @@ class PacientesController extends Controller
           ]
         ]);
       } else {
-        # Realizar solicitud GET a la api de Kude con el número de empleado para buscarlo en APSI
-        $response = Http::get($url, [
-          'numeroEmpleado' => $numeroEmpleado
-        ]);
-        $response = $response->body();
-        $response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
-        $response = json_decode($response, true);
+        # Buscamos el numero de empleado en fortia
+        $datosEmpleadoFortia = Helpers::obtenerDatosEmpleadoFortia(["employee_id" => $numeroEmpleado]);
+
+        $bodyResponse = $datosEmpleadoFortia['data'][0] ?? [];
+
+        $encontrado = $bodyResponse != [];
+
+        if (!$encontrado) {
+            $mensaje = 'Error. No encontró información del empleado en Fortia';
+            $bandera = 404;
+            $error = true;
+        } elseif (($bodyResponse['employee_status'] ?? null) === 'B') {
+            $mensaje = 'Error. El empleado se encuentra dado de baja en Fortia';
+            $bandera = 404;
+            $error = true;
+        } elseif (($bodyResponse['employee_status'] ?? null) === 'A') {
+            $mensaje = 'Éxito. Se encontró información del empleado activo en Fortia';
+            $bandera = 200;
+            $error = false;
+        } else {
+            $mensaje = 'Error. El empleado tiene un estado desconocido en Fortia';
+            $bandera = 404;
+            $error = true;
+        }
 
         # Respuesta de la solicitud HTTP
         return response()->json([
-          'bandera' => $response['bandera'],
-          'bandera_descripcion' => $response['bandera_descripcion'],
-          'error' => $response['error'],
-          'msg' => $response['msg'],
-          'body' => $response['response']
+            'bandera' => $bandera,
+            'bandera_descripcion' => $mensaje,
+            'error' => $error,
+            'msg' => $mensaje,
+            'body' => $datosEmpleadoFortia['data'] ?? []
         ]);
+
       }
     } catch (\Exception $e) {
       # Capturar cualquier excepción durante la solicitud HTTP
       return response()->json([
-        'bandera' => 0,
+        'bandera' => 500,
         'bandera_descripcion' => 'Problema de conexion',
         'error' => true,
         'msg' => 'Ocurrió un error al intentar comunicarse con la API: ' . $e->getMessage(),
