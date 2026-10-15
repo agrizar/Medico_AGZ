@@ -83,20 +83,8 @@ class RecetaController extends Controller
 
         $view_data['detalles_receta'] = $detalle_receta ? [$detalle_receta->toArray()] : [];
         $view_data['medicamentos'] = $medicamentos;
-
-        # Mandamos un array vacío para que no falle la vista
-        $view_data['todos_empleados_apsi'] = [];
         $view_data['perfil_nombre'] = [];
       } else {
-        # Obtener todos los empleados APSI
-        $urlTodosLosEmpleadosApsi =  env('API_URL_KUDE') . '/obtenTodosLosEmpleadosAPSI.php';
-        $response = Http::timeout(1000)->get($urlTodosLosEmpleadosApsi);
-        $response = $response->body();
-        $response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
-        $response = json_decode($response, true);
-
-        # guardamos los empleados en la variable de vista
-        $view_data['todos_empleados_apsi'] = $response['response'];
         $view_data['perfil_nombre'] = UsuarioPerfilModel::select('nombre')->where('id', Auth::user()->usuario_perfil_id)->first();
         $view_data['firma_usuario_logueado'] = UsuarioFirmaModel::where('usuario_id', Auth::user()->id)->where('borrado', 0)->value('firma');
       }
@@ -118,6 +106,65 @@ class RecetaController extends Controller
       }
     } else {
       return view('content.pages.pages-misc-error');
+    }
+  }
+
+  public function buscarEmpleadoFortia(Request $request)
+  {
+    $gafete = trim($request->input('gafete', ''));
+
+    if ($gafete === '') {
+      return response()->json(['error' => true, 'msg'   => 'Debes ingresar un número de gafete.']);
+    }
+
+    try {      
+      $empleados = Helpers::obtenerDatosEmpleadoFortia(['employee_id' => $gafete]);
+
+      if (empty($empleados) || ($empleados['status'] ?? null) != 200) {
+        return response()->json(['error' => true, 'msg' => 'Ocurrió un error con la consulta a Fortia.']);
+      }
+
+      $datos = $empleados['data'] ?? [];
+
+      if (empty($datos)) {
+        return response()->json(['error' => true, 'msg' => 'No se encontró información del empleado con ese gafete en Fortia.']);
+      }
+
+      // Buscar el empleado por su número de gafete exacto
+      $empleado = collect($datos)->first(function ($item) use ($gafete) {
+        return (string) ($item['employee_id'] ?? '') === (string) $gafete;
+      });
+
+      if (empty($empleado)) {
+        return response()->json(['error' => true, 'msg' => 'No se encontró información del empleado con ese gafete en Fortia.']);
+      }
+
+      // Validar el estado del empleado en Fortia
+      $estado = $empleado['employee_status'] ?? null;
+
+      if ($estado === 'B') {
+        return response()->json(['error' => true, 'msg' => 'El empleado se encuentra dado de baja en Fortia.']);
+      }
+
+      if ($estado !== 'A') {
+        return response()->json(['error' => true, 'msg' => 'No fue posible validar el estado del empleado en Fortia.']);
+      }
+
+      // Empleado activo: conservar la respuesta que consume tu sistema
+      return response()->json([
+        'error' => false,
+        'empleado' => [
+          'codigo' => $empleado['employee_id'] ?? $gafete,
+          'nombre' => $empleado['employee_name'] ?? '',
+          'ap_paterno' => $empleado['employee_last_name'] ?? '',
+          'ap_materno' => $empleado['employee_second_last_name'] ?? '',
+          'curp' => $empleado['curp'] ?? '',
+          'genero' => $empleado['gender'] ?? '',
+        ],
+      ]);
+
+    } catch (\Throwable $e) {
+      return response()->json(['error' => true, 'msg'   => 'No fue posible consultar Fortia. Intenta de nuevo.']);
     }
   }
 
@@ -193,20 +240,6 @@ class RecetaController extends Controller
 
   private function crearJsonVale($grupo, $paciente)
   {
-    /*
-    # Descomentar para obtener centro de costos dinámico del APSI
-    $gafete = $paciente->gafete;
-    $urlDatosEmpleadoApsi =  env('API_URL_KUDE') . '/buscaEmpleadoAPSI.php';
-
-    $response = Http::get($urlDatosEmpleadoApsi, ['numeroEmpleado' => $gafete]);
-    $response = $response->body();
-    $response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
-    $response = json_decode($response, true);
-
-    $centroCostosIdApsi = trim($response['response']['centro']);
-    */
-    $centroCostosIdApsi = '';
-
     #centro de costos fijo por el momento por usuario logueado
     $centroCostosCatalogo = CatalogoRanchosAgrizarModel::where('id', Auth::user()->catalogo_ranchos_agrizar_id)->where('borrado', 0)->first()->centro_costo;
 
@@ -221,7 +254,7 @@ class RecetaController extends Controller
       "prioridadid" => 1,
       "tipoid" => 1,
       "almacenaltaid" => 1,
-      "centrocostoid" => $centroCostosIdApsi,
+      "centrocostoid" => '',
       "centrocostocodigo" => $centroCostosCatalogo,
       "ordencompraid" => "",
       "nombreentregado" => $this->nombreCompleto($paciente),
@@ -645,49 +678,77 @@ class RecetaController extends Controller
 
     return response()->json($result);
   }
-
+  
   public function surtirRecetaCompleta(Request $request)
   {
-    $result = array("error" => false, "msg" => null, 'receta' => null);
-
+    $result = ["error" => false, "msg" => null, "receta" => null];
     $get = $request->all();
 
-    $datosReceta = RecetaModel::where('id', $get['recetaid'])->first()->toArray();
+    // Validar que se haya recibido el ID de la receta
+    if (empty($get['recetaid'])) {
+      return response()->json(['error' => true, 'msg' => 'No se recibió el identificador de la receta.']);
+    }
 
-    $datosReceta['created_at'] = date('Y-m-d', strtotime($datosReceta['created_at']));
-    $fechaHoy = date('Y-m-d');
+    // Obtener la receta
+    $receta = RecetaModel::where('id', $get['recetaid'])->first();
 
-    if ($fechaHoy != $datosReceta['created_at']) {
+    if (!$receta) {
+      return response()->json(['error' => true, 'msg' => 'No se encontró la receta solicitada.']);
+    }
+
+    $datosReceta = $receta->toArray();
+
+    // Validar vigencia de 72 horas a partir de la emisión
+    $fechaEmision = \Carbon\Carbon::parse($datosReceta['created_at']);
+    $fechaVencimiento = $fechaEmision->copy()->addHours(72);
+    $fechaActual = now();
+    
+    // Verificar si la receta ya venció
+    if ($fechaActual->greaterThanOrEqualTo($fechaVencimiento)) {
+      // Cambiar a vencida únicamente si continúa pendiente
+      if ((int) $datosReceta['receta_estatus_id'] === 1) {
+        RecetaModel::where('id', $get['recetaid'])->where('receta_estatus_id', 1)->update(['receta_estatus_id' => 3]);
+      }
+
       $result['error'] = true;
-      $result['msg'] = 'No es posible surtir la receta porque fue expedida el ' . $datosReceta['created_at'] . '. Las recetas únicamente pueden surtirse el mismo día de su expedición.';
+      $result['msg'] = 'La vigencia de la receta ha expirado. Fue expedida el ' . $fechaEmision->format('d/m/Y H:i') . ' y su vigencia terminó el ' . $fechaVencimiento->format('d/m/Y H:i') . '. No es posible surtirla.';
       return response()->json($result);
     }
 
-    switch ($datosReceta['receta_estatus_id']) {
+    // Validar el estado de la receta
+    switch ((int) $datosReceta['receta_estatus_id']) {
+      // Receta pendiente de surtir
       case 1:
         DB::connection('pgsql')->beginTransaction();
-
         try {
-          $datosHistoricoVale = RecetaValeHistoricoModel::where('receta_id', $get['recetaid'])->first()->toArray();
+          $datosHistoricoVale = RecetaValeHistoricoModel::where('receta_id', $get['recetaid'])->first();
+
+          if (!$datosHistoricoVale) {
+            throw new \Exception('No se encontró el histórico del vale asociado a la receta.');
+          }
+
+          $datosHistoricoVale = $datosHistoricoVale->toArray();
           $valeId = $datosHistoricoVale['vale_id'];
           $centroCostos = $datosHistoricoVale['centro_costos'];
-
           $datosPaciente = $this->obtenerDatosPaciente($datosReceta['paciente_id']);
 
           $jsonConsumo = $this->crearJsonConsumo($valeId, $datosPaciente, $centroCostos);
 
           $token = Helpers::obtenerToken();
+
           if (!$token) {
-            return response()->json(['error' => true, 'msg' => 'No se pudo obtener token'], 500);
+            DB::connection('pgsql')->rollBack();
+            return response()->json(['error' => true, 'msg' => 'No se pudo obtener token.'], 500);
           }
 
           $respuestaConsumo = $this->postAPI(env('GENERA_CONSUMO_HISPATEC'), $jsonConsumo, $token);
 
           if ($respuestaConsumo['error']) {
-            return $respuestaConsumo;
+            DB::connection('pgsql')->rollBack();
+            return response()->json($respuestaConsumo);
           }
 
-          # Guardar histórico consumo
+          // Guardar histórico del consumo
           $this->historicoConsumoId = RecetaConsumoHistoricoModel::insertGetId([
             'json_data' => json_encode($jsonConsumo),
             'respuesta_api' => json_encode($respuestaConsumo['data']),
@@ -698,32 +759,41 @@ class RecetaController extends Controller
           ]);
 
           $result['error'] = false;
-          $result["msg"] = 'La receta fue surtida correctamente y el consumo de los medicamentos se registró con éxito.';
+          $result['msg'] = 'La receta fue surtida correctamente y el consumo de los medicamentos se registró con éxito.';
+
           DB::connection('pgsql')->commit();
         } catch (\Exception $e) {
-          DB::connection('pgsql')->rollback();
-          return ['error' => true, 'msg' => "No fue posible surtir la receta en el sistema. Intentalo de nuevo y si el problema persiste contacta con el equipo de desarrollo.", 'return' => $e->getMessage()];
+          DB::connection('pgsql')->rollBack();
+          return response()->json(['error' => true,'msg' => 'No fue posible surtir la receta en el sistema. Inténtalo de nuevo y, si el problema persiste, contacta con el equipo de desarrollo.','return' => $e->getMessage()], 500);
         }
         break;
 
+      // Receta ya surtida
       case 2:
         $result['error'] = true;
-        $result["msg"] = 'La receta ya fue surtida anteriormente. No es posible volver a surtirla.';
+        $result['msg'] = 'La receta ya fue surtida anteriormente. No es posible volver a surtirla.';
         break;
 
+      // Receta vencida
       case 3:
         $result['error'] = true;
-        $result["msg"] = 'La vigencia de la receta ha expirado. No es posible surtirla.';
+        $result['msg'] = 'La vigencia de la receta ha expirado. No es posible surtirla.';
         break;
 
+      // Receta cancelada
       case 4:
         $result['error'] = true;
-        $result["msg"] = 'La receta se encuentra cancelada. No es posible surtirla.';
+        $result['msg'] = 'La receta se encuentra cancelada. No es posible surtirla.';
+        break;
+
+      default:
+        $result['error'] = true;
+        $result['msg'] = 'La receta tiene un estatus desconocido. No es posible surtirla.';
         break;
     }
-
     return response()->json($result);
   }
+
 
   public function guardarFirma(Request $request)
   {

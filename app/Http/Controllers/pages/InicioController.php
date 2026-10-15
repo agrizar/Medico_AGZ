@@ -165,10 +165,12 @@ class InicioController extends Controller
 
   private function caducarRecetas()
   {
-    RecetaModel::where('receta_estatus_id', 1)->whereDate('created_at', '<', today())
+    $fechaLimite = now()->subHours(72);
+
+    RecetaModel::where('receta_estatus_id', 1)->where('created_at', '<=', $fechaLimite)
       ->update([
         'receta_estatus_id' => 3,
         'updated_at' => now()
-      ]);
+    ]);
   }
 }

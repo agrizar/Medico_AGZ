@@ -143,7 +143,7 @@ $(document).ready(function () {
     }
   });
 
-  // Botón para buscar un paciente en APSI
+  // Botón para buscar un paciente
   $('#boton-buscar_paciente').click(async function (e) {
     // Reseteamos las validaciones de los campos del formulario
     validacionesInputsPaciente.resetForm(true);
@@ -204,7 +204,7 @@ $(document).ready(function () {
 
       pantallaCarga('on');
 
-      // Enviamos la solicitud AJAX para buscar en APSI
+      // Enviamos la solicitud AJAX para buscar el paciente
       $.ajax({
         url: '/pacientes/api/consultar',
         method: 'POST',
@@ -214,12 +214,13 @@ $(document).ready(function () {
         },
         success: function (response) {
           pantallaCarga('off');
+
           if (response.error == false) {
             $('#contenedor-datos_registro_paciente').removeClass('d-none');
             $('#contenedor-sin_datos_encontrados').addClass('d-none');
-            if (response.bandera == 1) {
+            if (response.bandera == 201) {
               // Si la bandera es 1 es porque el paciente ya ha tenido consultas
-              if (response.body != null) {
+              if (response.body != []) {
                 // Poner los valores en el formulario
                 $('#paciente-gafete').val(response.body.codigo).prop('readonly', true);
                 $('#paciente-nombre').val(response.body.nombre).prop('readonly', true);
@@ -254,14 +255,15 @@ $(document).ready(function () {
                 alertify.error(response.msg);
               }
             } else {
-              // Si body es diferente de null es porque si encontró resultados en APSI
-              if (response.body != null) {
+              // Si body es diferente de null es porque si encontró resultados en fortia
+              if (response.body != []) {
+                response.body = response.body[0];
                 // Poner los valores en el formulario
-                $('#paciente-gafete').val(response.body.codigo).prop('readonly', true);
-                $('#paciente-nombre').val(response.body.nombre).prop('readonly', true);
-                $('#paciente-apellido_paterno').val(response.body.ap_paterno).prop('readonly', true);
-                $('#paciente-apellido_materno').val(response.body.ap_materno).prop('readonly', true);
-                $('#paciente-genero').val(response.body.sexo).prop('disabled', true).trigger('change');
+                $('#paciente-gafete').val(response.body.employee_id).prop('readonly', true);
+                $('#paciente-nombre').val(response.body.employee_name).prop('readonly', true);
+                $('#paciente-apellido_paterno').val(response.body.employee_last_name).prop('readonly', true);
+                $('#paciente-apellido_materno').val(response.body.employee_second_last_name).prop('readonly', true);
+                $('#paciente-genero').val(response.body.gender).prop('disabled', true).trigger('change');
                 $('#paciente-curp').val(response.body.curp).prop('readonly', true);
 
                 alertify.success(response.msg);
@@ -280,7 +282,7 @@ $(document).ready(function () {
         error: function () {
           $('#contenedor-datos_registro_paciente').addClass('d-none');
           $('#contenedor-sin_datos_encontrados').removeClass('d-none');
-          alertify.error('Ocurrió un error al buscar los pacientes en el APSI.');
+          alertify.error('Ocurrió un error al buscar los pacientes.');
         },
         complete: function () {
           boton.prop('disabled', false);
