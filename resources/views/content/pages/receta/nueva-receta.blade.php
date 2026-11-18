@@ -50,6 +50,7 @@ $firma = $receta['firma_usuario'] ?? $datos_vista['firma_usuario_logueado'] ?? n
 $firmaPaciente = $receta['firma_paciente'] ?? null;
 $nombreDoctor = $receta ? $receta['usuario_creador_nombre'] . ' ' . $receta['usuario_creador_apellido_p'] . ' ' . $receta['usuario_creador_apellido_m'] : Auth::user()->nombre . ' ' . Auth::user()->apellido_paterno . ' ' . Auth::user()->apellido_materno;
 $universidadEgreso = $receta ? $receta['universidad_egreso'] : Auth::user()->universidad_egreso;
+$cedulaProfesional = $receta ? $receta['cedula_profesional'] : Auth::user()->cedula_profesional;
 @endphp
 
 <form id="form-receta" method="POST" enctype="multipart/form-data" onSubmit="return false">
@@ -166,15 +167,16 @@ $universidadEgreso = $receta ? $receta['universidad_egreso'] : Auth::user()->uni
                     {{ $receta['usuario_perfil'] ?? $datos_vista['perfil_nombre']['nombre'] }}
                 </h4>
 
-                <h5>
-                    <strong>C.P.</strong>
-                    {{ $receta['cedula_profesional'] ?? Auth::user()->cedula_profesional }}
-                </h5>
-
-                {{-- <h5>
-                    <strong>REG.SSA.</strong>
-                    {{ $receta['registro_ssa'] ?? Auth::user()->registro_ssa }}
-                </h5> --}}
+                @if (!empty($cedulaProfesional))
+                    <h5>
+                        <strong>C.P.</strong>
+                        {{ $cedulaProfesional }}
+                    </h5>
+                @else
+                    <div class="alert alert-warning mt-3 mb-0" role="alert">
+                        Válida solo para ser surtida en farmacia interna de Agrizar.
+                    </div>
+                @endif
             </div>
 
             <div class="col-md-4 col-sm-4 text-end">

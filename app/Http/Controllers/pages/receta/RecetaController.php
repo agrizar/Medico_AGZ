@@ -92,18 +92,13 @@ class RecetaController extends Controller
       $usuario_almacenes = UsuarioAlmacenModel::select('empresa_id', 'empresa_nombre', 'almacen_id', 'almacen_nombre', 'almacen_codigo')->where('usuario_id', Auth::user()->id)->where('borrado', 0)->get()->toArray();
       $view_data['usuario_almacenes'] = $usuario_almacenes;
 
-      # Validamos si el usuario tiene cedula profesional para tener permiso para acceder a esta seccion
-      if (Auth::user()->cedula_profesional) {
         $view_data['pacientes'] = PacienteModel::where('borrado', 0)->select('id', 'nombre', 'apellido_paterno', 'apellido_materno', 'edad')->get()->toArray();
 
         $lastFolio = RecetaModel::max('id');
         $view_data['folio'] = $lastFolio ? $lastFolio + 1 : 1;
 
         # Mandamos a la  vista
-        return view('content.pages.receta.nueva-receta', ['datos_vista' => $view_data]);
-      } else {
-        return view('content.pages.pages-misc-error');
-      }
+      return view('content.pages.receta.nueva-receta', ['datos_vista' => $view_data]);
     } else {
       return view('content.pages.pages-misc-error');
     }
